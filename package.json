@@ -2,10 +2,27 @@
   "name": "damoono-backend",
   "version": "1.0.0",
   "description": "backend of damoono",
-  "main": "index.js",
+  "main": "src/app.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
+    "start": "node build/src/app.js",
+    "dev": "nodemon --watch src --exec \"npm run build\"",
+    "lint-format": "biome check --write"
   },
   "author": "haegang",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.11",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.0.9",
+    "lefthook": "^2.0.15",
+    "nodemon": "^3.1.11",
+    "tsc-alias": "^1.8.16",
+    "typescript": "^5.9.3"
+  }
 }
