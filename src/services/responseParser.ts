@@ -1,5 +1,5 @@
-import type { CardData, ReferenceData } from '../data/referenceData';
-import { type IntentAnalysis, IntentType } from './intentAnalyzer';
+import type { CardData, ReferenceData } from '../data/referenceData.js';
+import { type IntentAnalysis, IntentType } from './intentAnalyzer.js';
 
 /**
  * Interface representing a parsed AI response with text, type, and optional cards

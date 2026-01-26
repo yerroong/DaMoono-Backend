@@ -1,11 +1,11 @@
 import { ChatOpenAI } from '@langchain/openai';
-import { type CardData, referenceData } from '../data/referenceData';
-import { analyzeIntent, IntentType } from './intentAnalyzer';
+import { type CardData, referenceData } from '../data/referenceData.js';
+import { analyzeIntent, IntentType } from './intentAnalyzer.js';
 import {
   buildPromptWithContext,
   formatReferenceDataForPrompt,
-} from './promptBuilder';
-import { parseResponse } from './responseParser';
+} from './promptBuilder.js';
+import { parseResponse } from './responseParser.js';
 
 // 챗봇 응답 인터페이스
 export interface ChatResponse {

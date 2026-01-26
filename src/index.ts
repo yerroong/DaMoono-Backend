@@ -1,3 +1,4 @@
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
@@ -5,6 +6,7 @@ import { createServer } from 'http';
 import { dirname, join } from 'path';
 import { Server } from 'socket.io';
 import { fileURLToPath } from 'url';
+import authRouter from './routes/auth.js';
 import chatRouter from './routes/chat.js';
 
 // ES 모듈에서 __dirname 구하기
@@ -15,6 +17,7 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, '../.env') });
 
 const app = express();
+app.use(cookieParser());
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
@@ -152,6 +155,9 @@ app.use(
   }),
 );
 app.use(express.json());
+
+//회원관련 api
+app.use('/auth', authRouter);
 
 // 라우트
 app.use('/api', chatRouter);
