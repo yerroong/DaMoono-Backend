@@ -4,8 +4,8 @@ import {
   HumanMessage,
   SystemMessage,
 } from '@langchain/core/messages';
-import type { CardData, ReferenceData } from '../data/referenceData';
-import type { IntentAnalysis } from './intentAnalyzer';
+import type { CardData, ReferenceData } from '../data/referenceData.js';
+import type { IntentAnalysis } from './intentAnalyzer.js';
 
 // 프롬프트 생성에 필요한 컨텍스트
 export interface PromptContext {
