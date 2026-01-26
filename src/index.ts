@@ -1,8 +1,10 @@
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import authRouter from './routes/auth.js';
 import chatRouter from './routes/chat.js';
 
 // ES 모듈에서 __dirname 구하기
@@ -13,6 +15,7 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, '../.env') });
 
 const app = express();
+app.use(cookieParser());
 const PORT = process.env.PORT || 3000;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 
@@ -32,11 +35,14 @@ app.use(
 );
 app.use(express.json());
 
+//회원관련 api
+app.use('/auth', authRouter);
+
 // 라우트
 app.use('/api', chatRouter);
 
 // 헬스 체크
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ status: 'ok', message: 'LangChain 서버가 정상 작동 중입니다.' });
 });
 
