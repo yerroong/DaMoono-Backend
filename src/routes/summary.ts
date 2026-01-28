@@ -1,5 +1,6 @@
 import express from 'express';
 import { requireAuth } from '@/middleware/requireAuth.js';
+import { getRecentUserConsultSummaries } from '@/services/consultRecentUser.js';
 import {
   createConsultantSummary,
   getConsultantSummary,
@@ -122,5 +123,25 @@ router.post(
     }
   },
 );
+
+router.get('/consults/recent', requireAuth, async (req, res) => {
+  const requesterUserId = (req as any).user.id as number;
+
+  const limitRaw = req.query.limit;
+  const limit =
+    typeof limitRaw === 'string'
+      ? Math.min(Math.max(parseInt(limitRaw, 10) || 3, 1), 10)
+      : 3;
+
+  const result = await getRecentUserConsultSummaries({ requesterUserId });
+
+  if (!result.ok) {
+    return res
+      .status(result.status)
+      .json({ success: false, error: result.error });
+  }
+
+  return res.json({ success: true, data: { limit, items: result.items } });
+});
 
 export default router;
