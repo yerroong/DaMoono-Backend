@@ -595,6 +595,426 @@ async function main() {
   });
 
   console.log('✅ Seed 완료 (Plans + Subscribes)');
+  // -----------------------------
+  // Consult Mock Data (Users: id=5, id=7)
+  // -----------------------------
+  const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+
+  const sessions = [
+    // userId=5 (recent/history용: USER summary 3개 만들기)
+    {
+      id: 'session-mock-5-001',
+      userId: 5,
+      consultantId: 7,
+      status: 'ENDED',
+      createdAt: daysAgo(7),
+    },
+    {
+      id: 'session-mock-5-002',
+      userId: 5,
+      consultantId: 7,
+      status: 'ENDED',
+      createdAt: daysAgo(5),
+    },
+    {
+      id: 'session-mock-5-003',
+      userId: 5,
+      consultantId: 7,
+      status: 'ENDED',
+      createdAt: daysAgo(2),
+    },
+    // 요약 없는 세션(히스토리에서 fallback title 확인용)
+    {
+      id: 'session-mock-5-004',
+      userId: 5,
+      consultantId: null,
+      status: 'WAITING',
+      createdAt: daysAgo(1),
+    },
+
+    // userId=7 (기존 2개)
+    {
+      id: 'session-mock-7-001',
+      userId: 7,
+      consultantId: 5,
+      status: 'ENDED',
+      createdAt: daysAgo(6),
+    },
+    {
+      id: 'session-mock-7-002',
+      userId: 7,
+      consultantId: 5,
+      status: 'ENDED',
+      createdAt: daysAgo(3),
+    },
+
+    // ✅ userId=7 추가 2개 (총 4개로)
+    {
+      id: 'session-mock-7-003',
+      userId: 7,
+      consultantId: 5,
+      status: 'ENDED',
+      createdAt: daysAgo(9),
+    },
+    {
+      id: 'session-mock-7-004',
+      userId: 7,
+      consultantId: null,
+      status: 'WAITING',
+      createdAt: daysAgo(0), // 오늘
+    },
+  ];
+
+  await prisma.consultSession.createMany({
+    data: sessions,
+    skipDuplicates: true,
+  });
+
+  // 메시지(각 세션당 2~6개 정도, seq 유니크 보장)
+  const messages = [
+    // session-mock-5-001
+    {
+      id: 'msg-5-001-01',
+      sessionId: 'session-mock-5-001',
+      seq: 1,
+      senderRole: 'USER',
+      content: '요금제가 갑자기 비싸진 것 같은데 확인 가능할까요?',
+    },
+    {
+      id: 'msg-5-001-02',
+      sessionId: 'session-mock-5-001',
+      seq: 2,
+      senderRole: 'CONSULTANT',
+      content:
+        '최근 청구서 기준으로 요금제/부가서비스/할인을 순서대로 확인해드릴게요.',
+    },
+    {
+      id: 'msg-5-001-03',
+      sessionId: 'session-mock-5-001',
+      seq: 3,
+      senderRole: 'USER',
+      content: '부가서비스가 뭔지 잘 모르겠어요.',
+    },
+    {
+      id: 'msg-5-001-04',
+      sessionId: 'session-mock-5-001',
+      seq: 4,
+      senderRole: 'CONSULTANT',
+      content:
+        '현재 가입된 항목과 해지 방법까지 안내드렸고, 다음 달부터 청구 금액이 줄어들 예정입니다.',
+    },
+
+    // session-mock-5-002
+    {
+      id: 'msg-5-002-01',
+      sessionId: 'session-mock-5-002',
+      seq: 1,
+      senderRole: 'USER',
+      content: '로밍 요금 폭탄 걱정돼요. 출국 전에 뭐 확인해야 하나요?',
+    },
+    {
+      id: 'msg-5-002-02',
+      sessionId: 'session-mock-5-002',
+      seq: 2,
+      senderRole: 'CONSULTANT',
+      content:
+        '국가/데이터 사용량/차단 설정 여부 확인이 중요합니다. 간단 체크리스트 드릴게요.',
+    },
+
+    // session-mock-5-003
+    {
+      id: 'msg-5-003-01',
+      sessionId: 'session-mock-5-003',
+      seq: 1,
+      senderRole: 'USER',
+      content: '통화 품질이 자꾸 끊겨요. 특정 장소에서만 그래요.',
+    },
+    {
+      id: 'msg-5-003-02',
+      sessionId: 'session-mock-5-003',
+      seq: 2,
+      senderRole: 'CONSULTANT',
+      content:
+        '기지국 영향 가능성이 있어요. 위치/시간대/단말기 재부팅 등 먼저 점검해볼게요.',
+    },
+    {
+      id: 'msg-5-003-03',
+      sessionId: 'session-mock-5-003',
+      seq: 3,
+      senderRole: 'USER',
+      content: '알겠어요. 테스트해보고 다시 연락할게요.',
+    },
+
+    // session-mock-5-004 (요약 없음)
+    {
+      id: 'msg-5-004-01',
+      sessionId: 'session-mock-5-004',
+      seq: 1,
+      senderRole: 'USER',
+      content: '분실했는데 지금 당장 뭘 해야 하나요? 너무 급해요.',
+    },
+
+    // session-mock-7-001
+    {
+      id: 'msg-7-001-01',
+      sessionId: 'session-mock-7-001',
+      seq: 1,
+      senderRole: 'USER',
+      content: '단말기 교체했는데 인증이 계속 실패해요.',
+    },
+    {
+      id: 'msg-7-001-02',
+      sessionId: 'session-mock-7-001',
+      seq: 2,
+      senderRole: 'CONSULTANT',
+      content:
+        'USIM 재장착/네트워크 설정 초기화 후에도 동일하면 인증 수단 변경을 안내드릴게요.',
+    },
+
+    // session-mock-7-002
+    {
+      id: 'msg-7-002-01',
+      sessionId: 'session-mock-7-002',
+      seq: 1,
+      senderRole: 'USER',
+      content: '약정 위약금이 얼마나 나오는지 미리 알고 싶어요.',
+    },
+    {
+      id: 'msg-7-002-02',
+      sessionId: 'session-mock-7-002',
+      seq: 2,
+      senderRole: 'CONSULTANT',
+      content:
+        '약정 잔여기간/할인반환금 기준으로 조회 가능하고, 대략 범위를 먼저 안내드릴게요.',
+    },
+
+    // ✅ session-mock-7-003 (추가 / ENDED)
+    {
+      id: 'msg-7-003-01',
+      sessionId: 'session-mock-7-003',
+      seq: 1,
+      senderRole: 'USER',
+      content:
+        '데이터가 빨리 닳는 것 같아요. 백그라운드에서 뭘 쓰는지 모르겠어요.',
+    },
+    {
+      id: 'msg-7-003-02',
+      sessionId: 'session-mock-7-003',
+      seq: 2,
+      senderRole: 'CONSULTANT',
+      content:
+        '최근 사용량이 큰 앱부터 확인하고, 데이터 절약모드/백그라운드 제한 설정을 안내드릴게요.',
+    },
+    {
+      id: 'msg-7-003-03',
+      sessionId: 'session-mock-7-003',
+      seq: 3,
+      senderRole: 'USER',
+      content: '설정 바꾸면 체감될까요?',
+    },
+    {
+      id: 'msg-7-003-04',
+      sessionId: 'session-mock-7-003',
+      seq: 4,
+      senderRole: 'CONSULTANT',
+      content:
+        '네, 상시 동기화 앱을 제한하면 효과가 큽니다. 변경 후 하루 정도 추이를 확인해보세요.',
+    },
+
+    // ✅ session-mock-7-004 (추가 / WAITING, 요약 없음)
+    {
+      id: 'msg-7-004-01',
+      sessionId: 'session-mock-7-004',
+      seq: 1,
+      senderRole: 'USER',
+      content: '요금제 추천 좀요. 데이터는 많이 쓰는데 통화는 거의 안 해요.',
+    },
+  ];
+
+  await prisma.consultMessage.createMany({
+    data: messages,
+    skipDuplicates: true,
+  });
+
+  // USER 요약(Recent/History 둘 다에 영향)
+  // - history: ConsultSummary.summary 컬럼을 title로 사용
+  // - recent: ConsultSummary.payload 객체에서 title/keywords를 뽑아감(키가 달라도 대응되게 여러 키를 넣음)
+  const summaries = [
+    // userId=5 세션 3개는 USER summary 반드시
+    {
+      id: 'sum-5-001-user-v1',
+      sessionId: 'session-mock-5-001',
+      audience: 'USER',
+      payload: {
+        title: '요금 상승 원인 확인 및 부가서비스 정리',
+        keywords: ['요금', '부가서비스', '해지'],
+        summary_user: {
+          title: '요금 상승 원인 확인',
+          keywords: ['요금', '부가서비스'],
+        },
+        tips: { items: ['부가서비스 목록 확인', '다음 달 청구서 재확인'] },
+        guides: { next: '설정 > 부가서비스에서 해지 후 다음 달 청구서 확인' },
+      },
+      ticketId: 'BILL-10021',
+      category: '요금',
+      summary:
+        '요금 상승은 부가서비스 영향. 해지 후 다음 달 청구서에서 감소 확인.',
+      version: 1,
+      promptKey: 'user_mock_v1',
+    },
+    {
+      id: 'sum-5-002-user-v1',
+      sessionId: 'session-mock-5-002',
+      audience: 'USER',
+      payload: {
+        title: '로밍 요금폭탄 예방 체크리스트',
+        keywords: ['로밍', '데이터', '차단'],
+        summary_user: { title: '로밍 사전 점검', keywords: ['로밍', '차단'] },
+        tips: { items: ['국가별 요금 확인', '데이터 차단/알림 설정'] },
+        guides: { next: '출국 전 로밍 상품 가입 여부와 차단 설정을 꼭 확인' },
+      },
+      ticketId: 'ROAM-77411',
+      category: '로밍',
+      summary:
+        '출국 전 국가/데이터 설정 확인. 차단·알림 설정으로 과금 리스크 최소화.',
+      version: 1,
+      promptKey: 'user_mock_v1',
+    },
+    {
+      id: 'sum-5-003-user-v1',
+      sessionId: 'session-mock-5-003',
+      audience: 'USER',
+      payload: {
+        title: '통화 끊김 증상 점검 및 후속 안내',
+        keywords: ['품질', '통화', '기지국'],
+        summary_user: { title: '통화 품질 점검', keywords: ['품질', '통화'] },
+        tips: { items: ['발생 위치/시간 기록', '재부팅/설정 초기화'] },
+        guides: { next: '동일 장소 재현 시점 기록 후 재문의' },
+      },
+      ticketId: 'QLTY-55290',
+      category: '품질',
+      summary:
+        '특정 장소에서 통화 끊김. 위치/시간 기록 후 재현되면 추가 점검 진행.',
+      version: 1,
+      promptKey: 'user_mock_v1',
+    },
+
+    // userId=7 기존 2개 USER summary
+    {
+      id: 'sum-7-001-user-v1',
+      sessionId: 'session-mock-7-001',
+      audience: 'USER',
+      payload: {
+        title: '단말 변경 후 인증 실패 조치',
+        keywords: ['단말기', '인증', 'USIM'],
+        summary_user: { title: '인증 오류 해결', keywords: ['인증', 'USIM'] },
+        tips: { items: ['USIM 재장착', '네트워크 설정 초기화'] },
+        guides: { next: '문제 지속 시 인증 수단 변경 안내' },
+      },
+      ticketId: 'DEV-22018',
+      category: '단말기',
+      summary:
+        '단말 교체 후 인증 실패. USIM/네트워크 설정 점검 후에도 실패 시 수단 변경.',
+      version: 1,
+      promptKey: 'user_mock_v1',
+    },
+    {
+      id: 'sum-7-002-user-v1',
+      sessionId: 'session-mock-7-002',
+      audience: 'USER',
+      payload: {
+        title: '약정 위약금 사전 조회 안내',
+        keywords: ['위약금', '약정', '해지'],
+        summary_user: { title: '위약금 조회', keywords: ['약정', '위약금'] },
+        tips: { items: ['잔여기간 확인', '할인반환금 기준 확인'] },
+        guides: { next: '해지 전 위약금 조회로 비용 리스크 확인' },
+      },
+      ticketId: 'TERM-90412',
+      category: '기타',
+      summary:
+        '약정 잔여기간 기반 위약금(할인반환금) 조회 가능. 해지 전 사전 확인 권장.',
+      version: 1,
+      promptKey: 'user_mock_v1',
+    },
+
+    // ✅ userId=7 추가 세션 7-003에는 USER summary 하나 더(최근/히스토리 테스트용)
+    {
+      id: 'sum-7-003-user-v1',
+      sessionId: 'session-mock-7-003',
+      audience: 'USER',
+      payload: {
+        title: '데이터 소모 원인 점검 및 설정 가이드',
+        keywords: ['데이터', '백그라운드', '절약모드'],
+        summary_user: {
+          title: '데이터 과소모 점검',
+          keywords: ['데이터', '백그라운드'],
+        },
+        tips: {
+          items: [
+            '사용량 큰 앱 확인',
+            '백그라운드 데이터 제한',
+            '절약모드 적용',
+          ],
+        },
+        guides: { next: '설정 변경 후 24시간 사용량 추이 확인' },
+      },
+      ticketId: 'DATA-33019',
+      category: '기타',
+      summary:
+        '백그라운드 동기화 앱 점검 후 제한 설정 안내. 변경 후 하루 추이 확인 권장.',
+      version: 1,
+      promptKey: 'user_mock_v1',
+    },
+
+    // (옵션) 상담사 요약 1개(consultant 화면 테스트용)
+    {
+      id: 'sum-5-003-consultant-v1',
+      sessionId: 'session-mock-5-003',
+      audience: 'CONSULTANT',
+      payload: {
+        summary_admin: {
+          report_card: {
+            category: '품질',
+            outcome: {
+              value: '부분 해결',
+              reason: '기본 점검 안내 후 재현 확인 요청',
+            },
+            re_contact: {
+              value: '보통',
+              reason: '고객이 테스트 후 재문의 의사',
+            },
+          },
+          mood_timeline: {
+            start: { mood: '불안', reason: '통화 끊김 반복' },
+            middle: { mood: '확인 중', reason: '점검 절차 안내' },
+            end: { mood: '안심', reason: '후속 가이드 수령' },
+            improvement_score: 70,
+          },
+          customer_dna: [
+            { tag: '기술적 이해도 보통', reason: '점검 절차 수용' },
+          ],
+          risk_tagging: [
+            { tag: '장기 미해결', reason: '특정 장소 재현 시 추가 조치 필요' },
+          ],
+          next_interaction_guide:
+            '재현 위치/시간/단말 정보 확인 후 기지국 품질 점검 프로세스 진행.',
+        },
+      },
+      ticketId: '',
+      category: '품질',
+      summary:
+        '특정 장소 통화 끊김. 재현 정보 수집 후 기지국/단말 점검으로 이어가기.',
+      version: 1,
+      promptKey: 'consultant_mock_v1',
+    },
+  ];
+
+  await prisma.consultSummary.createMany({
+    data: summaries,
+    skipDuplicates: true,
+  });
+
+  console.log('✅ Seed 완료 (Consult mock data: sessions/messages/summaries)');
 }
 
 main()
