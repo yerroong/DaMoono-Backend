@@ -117,115 +117,155 @@ function extractJsonObject(text: string): any {
  * ✅ 라우터가 찾는 이름: generateConsultantSummary
  * (실제 구현은 createConsultantSummary 로직과 동일)
  */
+// ✅ src/services/consultSummaryConsultant.ts
+// 아래 2개 함수만 “그대로” 교체해서 붙여넣어.
+
 export async function generateConsultantSummary(args: CreateArgs) {
-  const { sessionId, requesterUserId, force, limitMessages } = args;
+  try {
+    const { sessionId, requesterUserId, force, limitMessages } = args;
 
-  const session = await prisma.consultSession.findUnique({
-    where: { id: sessionId },
-    select: { userId: true, consultantId: true },
-  });
+    const session = await prisma.consultSession.findUnique({
+      where: { id: sessionId },
+      select: { userId: true, consultantId: true },
+    });
 
-  if (!session) throw new Error('SESSION_NOT_FOUND');
+    if (!session) {
+      return { ok: false as const, status: 404, error: 'SESSION_NOT_FOUND' };
+    }
 
-  const isOwner =
-    session.userId === requesterUserId ||
-    session.consultantId === requesterUserId;
+    const isOwner =
+      session.userId === requesterUserId ||
+      session.consultantId === requesterUserId;
 
-  if (!isOwner) throw new Error('FORBIDDEN');
+    if (!isOwner) {
+      return { ok: false as const, status: 403, error: 'FORBIDDEN' };
+    }
 
-  if (!force) {
-    const existing = await prisma.consultSummary.findFirst({
+    // force 아니면 최신 요약 있으면 그대로 반환
+    if (!force) {
+      const existing = await prisma.consultSummary.findFirst({
+        where: { sessionId, audience: 'CONSULTANT' },
+        orderBy: { version: 'desc' },
+      });
+      if (existing) {
+        return { ok: true as const, status: 200, payload: existing };
+      }
+    }
+
+    const messages = await prisma.consultMessage.findMany({
+      where: { sessionId },
+      orderBy: { seq: 'asc' },
+      take: typeof limitMessages === 'number' ? limitMessages : undefined,
+      select: { senderRole: true, content: true },
+    });
+
+    const transcript = toTranscript(
+      messages.map((m: { senderRole: string; content: string }) => ({
+        senderRole: m.senderRole,
+        content: m.content,
+      })),
+    );
+
+    const model = getModel();
+    const system = new SystemMessage(
+      `너는 상담 전문을 JSON으로만 출력하는 엔진이다. 어떤 경우에도 JSON 외 텍스트를 출력하지 마라.`,
+    );
+    const human = new HumanMessage(
+      `${CONSULTANT_PROMPT_V3}\n\n[상담 전문]\n${transcript}`,
+    );
+
+    const t0 = Date.now();
+    const resp = await model.invoke([system, human]);
+    const ms = Date.now() - t0;
+
+    const raw = resp.content.toString();
+
+    // ✅ 파싱 실패 원인 로그 (Railway에서 확인 가능)
+    let payload: any;
+    try {
+      payload = extractJsonObject(raw);
+    } catch (e) {
+      console.error('[CONSULTANT_SUMMARY] LLM RAW OUTPUT:', raw);
+      return { ok: false as const, status: 502, error: 'LLM_JSON_PARSE_FAIL' };
+    }
+
+    const category = payload?.summary_admin?.report_card?.category ?? '';
+    const summary = payload?.summary_admin?.next_interaction_guide ?? '';
+
+    const latest = await prisma.consultSummary.findFirst({
       where: { sessionId, audience: 'CONSULTANT' },
       orderBy: { version: 'desc' },
+      select: { version: true },
     });
-    if (existing) {
-      return { ok: true as const, status: 200, payload: existing };
-    }
+    const nextVersion = (latest?.version ?? 0) + 1;
+
+    const saved = await prisma.consultSummary.create({
+      data: {
+        sessionId,
+        audience: 'CONSULTANT',
+        payload,
+        ticketId: '',
+        category: typeof category === 'string' ? category : '',
+        summary: typeof summary === 'string' ? summary : '',
+        version: nextVersion,
+        promptKey: 'consultant_v3',
+      },
+    });
+
+    return {
+      ok: true as const,
+      status: 201,
+      payload: {
+        ...saved,
+        _meta: { llmMs: ms, messageCount: messages.length },
+      },
+    };
+  } catch (e) {
+    console.error('[generateConsultantSummary] fail', e);
+    return { ok: false as const, status: 500, error: 'INTERNAL_ERROR' };
   }
-
-  const messages = await prisma.consultMessage.findMany({
-    where: { sessionId },
-    orderBy: { seq: 'asc' },
-    take: typeof limitMessages === 'number' ? limitMessages : undefined,
-    select: { senderRole: true, content: true },
-  });
-
-  const transcript = toTranscript(
-    messages.map((m: { senderRole: string; content: string }) => ({
-      senderRole: m.senderRole,
-      content: m.content,
-    })),
-  );
-
-  const model = getModel();
-  const system = new SystemMessage(
-    `너는 상담 전문을 JSON으로만 출력하는 엔진이다. 어떤 경우에도 JSON 외 텍스트를 출력하지 마라.`,
-  );
-  const human = new HumanMessage(
-    `${CONSULTANT_PROMPT_V3}\n\n[상담 전문]\n${transcript}`,
-  );
-
-  const t0 = Date.now();
-  const resp = await model.invoke([system, human]);
-  const ms = Date.now() - t0;
-
-  const raw = resp.content.toString();
-  const payload = extractJsonObject(raw);
-
-  const category = payload?.summary_admin?.report_card?.category ?? '';
-  const summary = payload?.summary_admin?.next_interaction_guide ?? '';
-
-  const latest = await prisma.consultSummary.findFirst({
-    where: { sessionId, audience: 'CONSULTANT' },
-    orderBy: { version: 'desc' },
-    select: { version: true },
-  });
-  const nextVersion = (latest?.version ?? 0) + 1;
-
-  const saved = await prisma.consultSummary.create({
-    data: {
-      sessionId,
-      audience: 'CONSULTANT',
-      payload,
-      ticketId: '',
-      category: typeof category === 'string' ? category : '',
-      summary: typeof summary === 'string' ? summary : '',
-      version: nextVersion,
-      promptKey: 'consultant_v3',
-    },
-  });
-
-  return {
-    ok: true as const,
-    status: 201,
-    payload: { ...saved, _meta: { llmMs: ms, messageCount: messages.length } },
-  };
 }
 
 export async function getConsultantSummary(args: GetArgs) {
-  const { sessionId, requesterUserId, version } = args;
+  try {
+    const { sessionId, requesterUserId, version } = args;
 
-  const session = await prisma.consultSession.findUnique({
-    where: { id: sessionId },
-    select: { userId: true, consultantId: true },
-  });
-  if (!session) throw new Error('SESSION_NOT_FOUND');
-
-  const isOwner =
-    session.userId === requesterUserId ||
-    session.consultantId === requesterUserId;
-  if (!isOwner) throw new Error('FORBIDDEN');
-
-  if (typeof version === 'number' && Number.isFinite(version)) {
-    return prisma.consultSummary.findFirst({
-      where: { sessionId, audience: 'CONSULTANT', version },
+    const session = await prisma.consultSession.findUnique({
+      where: { id: sessionId },
+      select: { userId: true, consultantId: true },
     });
-  }
 
-  return prisma.consultSummary.findFirst({
-    where: { sessionId, audience: 'CONSULTANT' },
-    orderBy: { version: 'desc' },
-  });
+    if (!session) {
+      return { ok: false as const, status: 404, error: 'SESSION_NOT_FOUND' };
+    }
+
+    const isOwner =
+      session.userId === requesterUserId ||
+      session.consultantId === requesterUserId;
+
+    if (!isOwner) {
+      return { ok: false as const, status: 403, error: 'FORBIDDEN' };
+    }
+
+    const row =
+      typeof version === 'number' && Number.isFinite(version)
+        ? await prisma.consultSummary.findFirst({
+            where: { sessionId, audience: 'CONSULTANT', version },
+          })
+        : await prisma.consultSummary.findFirst({
+            where: { sessionId, audience: 'CONSULTANT' },
+            orderBy: { version: 'desc' },
+          });
+
+    if (!row) {
+      return { ok: false as const, status: 404, error: 'SUMMARY_NOT_FOUND' };
+    }
+
+    return { ok: true as const, status: 200, payload: row };
+  } catch (e) {
+    console.error('[getConsultantSummary] fail', e);
+    return { ok: false as const, status: 500, error: 'INTERNAL_ERROR' };
+  }
 }
 
 /**
