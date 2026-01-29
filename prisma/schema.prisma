@@ -71,12 +71,16 @@ model ConsultSession {
   consultantId Int?
   status       ConsultStatus @default(WAITING)
 
+  createdAt    DateTime      @default(now())
+
   messages  ConsultMessage[]
   summaries ConsultSummary[]
 
   @@index([userId])
   @@index([consultantId])
+  @@index([createdAt])
 }
+
 
 model ConsultMessage {
   id         String            @id @default(cuid())
